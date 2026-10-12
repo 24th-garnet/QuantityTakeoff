@@ -1,0 +1,107 @@
+{
+  "schema_version": "mdr-measures-1",
+  "source": "minicad",
+  "plan_id": "madori-0a3f",
+  "name": "ワンルーム 内装改修（CAD から）",
+  "rooms": [
+    {
+      "id": "r1",
+      "name": "居室",
+      "floor_area": 19.42,
+      "ceiling_area": 19.42,
+      "perimeter": 17680,
+      "height": 2400,
+      "wall_area": 38.62,
+      "openings": [
+        {
+          "id": "o1",
+          "kind": "windowSliding",
+          "width": 1690,
+          "height": 1170,
+          "sill": 800
+        },
+        {
+          "id": "o2",
+          "kind": "window",
+          "width": 780,
+          "height": 900,
+          "sill": 1100
+        },
+        {
+          "id": "o3",
+          "kind": "slidingDouble",
+          "width": 1650,
+          "height": 2000,
+          "sill": 0
+        },
+        {
+          "id": "o4",
+          "kind": "door",
+          "width": 800,
+          "height": 2000,
+          "sill": 0
+        }
+      ],
+      "furniture": [
+        {
+          "code": "sofa",
+          "label": "ソファ",
+          "count": 1
+        },
+        {
+          "code": "dining",
+          "label": "ダイニング",
+          "count": 1
+        },
+        {
+          "code": "chair",
+          "label": "椅子",
+          "count": 4
+        }
+      ],
+      "basis": {
+        "height": "既定"
+      },
+      "basis_note": {
+        "height": "階の既定 2400mm。天井高は持っていないので代用"
+      }
+    },
+    {
+      "id": "r2",
+      "name": "洗面脱衣",
+      "floor_area": 3.24,
+      "ceiling_area": 3.24,
+      "perimeter": 7200,
+      "height": 2400,
+      "wall_area": 14.08,
+      "openings": [
+        {
+          "id": "o5",
+          "kind": "door",
+          "width": 700,
+          "height": 2000,
+          "sill": 0
+        }
+      ],
+      "furniture": [
+        {
+          "code": "sink",
+          "label": "洗面台",
+          "count": 1
+        }
+      ],
+      "basis": {
+        "height": "既定"
+      },
+      "basis_note": {
+        "height": "階の既定 2400mm。天井高は持っていないので代用"
+      }
+    }
+  ],
+  "basis": {
+    "swing": "未計測"
+  },
+  "basis_note": {
+    "swing": "建具の開き勝手は図面の記号だけで、寸法として持っていない"
+  }
+}

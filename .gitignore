@@ -1,0 +1,11 @@
+# 手元の拾い方の設定。品目コードは会社ごとの単価表に紐づくので持たない
+/rules.toml
+
+# 書き出した数量
+/out/
+
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
+.DS_Store

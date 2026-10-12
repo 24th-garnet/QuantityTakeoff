@@ -1,0 +1,42 @@
+# 拾い方の見本。**品目コードは InterierEstimation の examples/prices.csv に合わせてある。**
+#
+# 空文字は「この部屋にその面は無い」と人が判断した印。書かなければ「まだ見ていない」。
+standard = "公共建築数量積算基準 令和 5 年改定（見本）"
+
+[deduct]
+# 1 か所 0.5 ㎡以下は欠除しない
+min_opening_area = 0.5
+
+[[finish]]
+rooms = ["居室", "洋室", "撮影範囲"]
+strip = "CL-0100"
+wall = "WC-1000"
+ceiling = "WC-2000"
+floor = "FL-2000"
+baseboard = "BB-0100"
+cornice = "CN-0100"
+
+[[finish]]
+rooms = ["洗面", "脱衣", "浴室", "トイレ"]
+strip = "CL-0100"
+wall = "WC-1000"
+ceiling = "WC-1000"
+floor = "FL-3000"
+baseboard = "BB-0100"
+cornice = ""            # 水回りに回り縁は回さない
+
+[fittings]
+door = "DR-0100"
+slidingDouble = "DR-0200"
+slidingSingle = "DR-0200"
+window = "WD-0100"
+windowSliding = "WD-0100"
+opening = ""            # 建具なしの出入口。拾うものが無い
+
+[furniture]
+sofa = "SOF-01"
+table = "TBL-01"
+dining = "TBL-01"
+chair = "CHR-01"
+storage = "STG-01"
+sink = ""               # 洗面台は設備工事。内装の数量には入れない

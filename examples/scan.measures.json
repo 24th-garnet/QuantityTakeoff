@@ -1,0 +1,74 @@
+{
+  "schema_version": "mdr-measures-1",
+  "source": "capturevisualizer",
+  "plan_id": "room-33d49373",
+  "name": "ワンルーム 内装改修（スキャンから）",
+  "rooms": [
+    {
+      "id": "whole",
+      "name": "撮影範囲",
+      "floor_area": 22.66,
+      "ceiling_area": 22.66,
+      "perimeter": 19420,
+      "height": 2380,
+      "wall_area": 41.93,
+      "openings": [
+        {
+          "id": "w0-0",
+          "kind": "window",
+          "width": 1736,
+          "height": 1150,
+          "sill": 810
+        },
+        {
+          "id": "w2-0",
+          "kind": "door",
+          "width": 812,
+          "height": 1990,
+          "sill": 0
+        },
+        {
+          "id": "w3-0",
+          "kind": "opening",
+          "width": 1640,
+          "height": 2010,
+          "sill": 0
+        }
+      ],
+      "furniture": [
+        {
+          "code": "sofa",
+          "label": "ソファ",
+          "count": 1
+        },
+        {
+          "code": "table",
+          "label": "テーブル",
+          "count": 1
+        },
+        {
+          "code": "storage",
+          "label": "収納",
+          "count": 2
+        }
+      ],
+      "basis": {
+        "wall_area": "既定",
+        "height": "実測"
+      },
+      "basis_note": {
+        "wall_area": "RoomPlan は壁厚を返さない。作図上の 0.12m",
+        "height": "床と天井の差から"
+      }
+    }
+  ],
+  "basis": {
+    "partition": "未計測",
+    "holes": "未計測",
+    "swing": "未計測"
+  },
+  "basis_note": {
+    "partition": "スキャンは室を分けない。壁のループ全体を 1 室として出した",
+    "holes": "柱型・PS という概念を持たない。0 件は「無い」ではない"
+  }
+}
