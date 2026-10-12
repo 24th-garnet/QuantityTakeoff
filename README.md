@@ -1,7 +1,7 @@
 # QuantityTakeoff
 
 図面とスキャンの**実測から内装の数量を拾う**。拾った数量は
-[InterierEstimation][est] がそのまま食える形で出る。
+[InteriorEstimation][est] がそのまま食える形で出る。
 
 ```bash
 uv sync
@@ -39,12 +39,12 @@ uv run takeoff run examples/minicad.measures.json --rules examples/rules.toml
 
 ```
 MiniCAD ──────┐
-              ├→ 実測 JSON ─→ QuantityTakeoff ─→ 数量リスト ─→ InterierEstimation
+              ├→ 実測 JSON ─→ QuantityTakeoff ─→ 数量リスト ─→ InteriorEstimation
 CaptureVisualizer ┘                                                   ↓
                                                                    見積書
 ```
 
-[est]: https://github.com/24th-garnet/InterierEstimation
+[est]: https://github.com/24th-garnet/InteriorEstimation
 
 ## 入力 1 — 実測 JSON
 
@@ -153,7 +153,7 @@ sink = ""               # 洗面台は設備工事。内装の数量には入れ
 | 書いていない | **まだ誰も見ていない** → 報告に出る |
 
 これが無いと、巾木の無い部屋がいつまでも「品目コードが無い」と報告に出続けて、
-誰も直さなくなる（[InterierEstimation][est] の単価表が認定欄に `対象外` を持つのと同じ）。
+誰も直さなくなる（[InteriorEstimation][est] の単価表が認定欄に `対象外` を持つのと同じ）。
 
 ### 拠った基準を書かせる
 
@@ -231,4 +231,4 @@ uv run pytest tests -q     # 66 件
 書いてある。そのための**固定の実測をテストの中に持っている** —— 見本に乗せると、
 見本を作り直すたびに巻き添えで落ち、規約が変わったのか見本が変わったのかが分からなくなる。
 
-見積モジュールまで通る通しのテストもあるが、`InterierEstimation` が隣に無ければ飛ばす。
+見積モジュールまで通る通しのテストもあるが、`InteriorEstimation` が隣に無ければ飛ばす。

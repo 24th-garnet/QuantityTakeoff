@@ -1,4 +1,4 @@
-# 拾い方の見本。**品目コードは InterierEstimation の examples/prices.csv に合わせてある。**
+# 拾い方の見本。**品目コードは InteriorEstimation の examples/prices.csv に合わせてある。**
 #
 # 空文字は「この部屋にその面は無い」と人が判断した印。書かなければ「まだ見ていない」。
 standard = "公共建築数量積算基準 令和 5 年改定（見本）"

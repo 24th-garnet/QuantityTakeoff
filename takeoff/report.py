@@ -1,9 +1,9 @@
-"""拾った数量を、人が読む形と InterierEstimation が食う形に落とす。
+"""拾った数量を、人が読む形と InteriorEstimation が食う形に落とす。
 
 **端末の表は全角を 2 で数える。** 部屋名と面の名前が日本語なので、文字数で揃えると列が
 必ずずれる。
 
-数量リストでは**数量を文字列で出す。** 受け手（`InterierEstimation`）は `Decimal` で
+数量リストでは**数量を文字列で出す。** 受け手（`InteriorEstimation`）は `Decimal` で
 読み直すので、JSON の数にすると float を経由した読み手が末尾を濁らせる。
 """
 from __future__ import annotations
@@ -104,7 +104,7 @@ def _kind(kind: str) -> str:
 
 def quantities(result: Result, *, number: str = "", issued: str = "",
                client: str = "", subject: str = "") -> dict:
-    """`InterierEstimation` が食う数量リスト。
+    """`InteriorEstimation` が食う数量リスト。
 
     **同じ品目コードが 2 行あっても合算しない。** 「居室の壁」と「洗面脱衣の壁」は
     同じクロスでも別の行として見せたい。合算すると見積書から現場が消える——

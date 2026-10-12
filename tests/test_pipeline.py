@@ -1,6 +1,6 @@
 """見積モジュールまで通ること。**契約が合っていなければ落ちる。**
 
-`InterierEstimation` が隣に無ければ飛ばす。片方だけ clone した環境でも
+`InteriorEstimation` が隣に無ければ飛ばす。片方だけ clone した環境でも
 テストが落ちないようにする。
 """
 from __future__ import annotations
@@ -15,9 +15,9 @@ from takeoff import measures, report, rules, takeoff
 
 from .conftest import EXAMPLES, ROOT
 
-EST = ROOT.parent / "InterierEstimation"
+EST = ROOT.parent / "InteriorEstimation"
 pytestmark = pytest.mark.skipif(not (EST / "estimate").is_dir(),
-                                reason="InterierEstimation が隣に無い")
+                                reason="InteriorEstimation が隣に無い")
 
 
 @pytest.fixture(scope="module")
