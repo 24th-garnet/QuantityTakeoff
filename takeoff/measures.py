@@ -19,6 +19,7 @@ from decimal import Decimal, InvalidOperation
 from pathlib import Path
 
 from . import basis as basis_mod
+from .rules import SURFACES
 
 SCHEMA = "mdr-measures-1"
 
@@ -65,11 +66,18 @@ class Opening:
 
 @dataclass(frozen=True)
 class Furniture:
-    """家具 1 種。"""
+    """家具 1 種。
+
+    `item` は**上流で選んだ品目**。3D の上でそのオブジェクトに品目を割り当てた
+    なら、種別（`sofa`）から規則で引くのではなく、選んだものがそのまま来る。
+    空なら `[furniture]` の規則で引く。
+    """
 
     code: str
     label: str
     count: int
+    #: 上流で選んだ品目コード。**空なら規則で引く**
+    item: str = ""
 
 
 @dataclass(frozen=True)
@@ -89,6 +97,15 @@ class Room:
     wall_area: Decimal
     openings: tuple[Opening, ...] = ()
     furniture: tuple[Furniture, ...] = ()
+    #: 面の種類 → 上流で選んだ品目コード。**`[[finish]]` の規則より優先する。**
+    #:
+    #: 規則は「居室の壁は量産クロス」という**部屋の種別ごとの決め打ち**で、
+    #: 3D の上で面を選んで壁紙を決めたときに、その選択を書き留める先が無い。
+    #: ここに書いてあれば、部屋名が規則に当たるかどうかに関わらずそれを使う。
+    #:
+    #: 空文字の意味は `Finish.codes` と同じ——**「この面は拾わない」と人が
+    #: 判断した印**で、書いていない（＝まだ選んでいない）とは別。
+    finish: dict[str, str] = field(default_factory=dict)
     #: 量ごとの根拠。語彙は `basis.STRENGTH`。**欄が無ければ実測**
     basis: dict[str, str] = field(default_factory=dict)
     #: 根拠の言い換え（自由記述）
@@ -247,8 +264,10 @@ def _room(raw: dict, at: str, reasons: list[str]) -> Room:
         if count < 1:
             reasons.append(f"{fat}.count は 1 以上 ({count})")
             continue
-        furniture.append(Furniture(code, str(f.get("label") or code).strip(), count))
+        furniture.append(Furniture(code, str(f.get("label") or code).strip(),
+                                   count, str(f.get("item") or "").strip()))
 
+    finish = _finish(raw, at, reasons)
     b = _basis(raw, at, reasons)
     note = raw.get("basis_note") or {}
     if not isinstance(note, dict):
@@ -257,8 +276,31 @@ def _room(raw: dict, at: str, reasons: list[str]) -> Room:
 
     return Room(rid, name, nums["floor_area"], nums["ceiling_area"],
                 nums["perimeter"], nums["height"], nums["wall_area"],
-                tuple(openings), tuple(furniture), b,
+                tuple(openings), tuple(furniture), finish, b,
                 {str(k): str(v) for k, v in note.items()})
+
+
+def _finish(raw: dict, at: str, reasons: list[str]) -> dict[str, str]:
+    """上流で選んだ仕上げ。**知らない面の名前は断る。**
+
+    `basis` と同じ扱い。表記ゆれを黙って通すと、`wal` と書いた選択が黙って
+    無視されて規則の値が出る——**選んだのに反映されない**という、画面の上で
+    一番気付きにくい壊れ方になる。
+    """
+    got = raw.get("finish") or {}
+    if not isinstance(got, dict):
+        reasons.append(f"{at}.finish: 辞書ではない")
+        return {}
+    known = {k for k, _, _ in SURFACES}
+    out: dict[str, str] = {}
+    for k, v in got.items():
+        key = str(k).strip()
+        if key not in known:
+            reasons.append(f"{at}.finish: 知らない面 ({key!r})。"
+                           f"使えるのは {'・'.join(sorted(known))}")
+            continue
+        out[key] = str(v or "").strip()
+    return out
 
 
 def _basis(raw: dict, at: str, reasons: list[str]) -> dict[str, str]:

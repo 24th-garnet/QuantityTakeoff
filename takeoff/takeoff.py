@@ -187,13 +187,15 @@ NEEDS = {
 }
 
 
-def room_items(room: Room, finish: Finish, rules: Rules,
+def room_items(room: Room, finish: Finish | None, rules: Rules,
                dropped: list[Unassigned]) -> list[Item]:
-    """1 部屋ぶんの面の数量。"""
+    """1 部屋ぶんの面の数量。**選んであれば規則より選択を使う。**"""
     out: list[Item] = []
     where = room.name or room.id
+    codes = dict(finish.codes if finish else {})
+    codes.update(room.finish)   # 上流で選んだものが勝つ
     for kind, label, _ in SURFACES:
-        code = finish.codes.get(kind, "")
+        code = codes.get(kind, "")
         if not code:
             continue        # 書いていない or 空文字。どちらも行は作らない
         qty, note = surface_qty(room, kind, rules.min_opening)
@@ -220,14 +222,15 @@ def build(measures: Measures, rules: Rules) -> Result:
     for room in measures.rooms:
         where = room.name or room.id
         finish = rules.finish_for(room.name)
-        if finish is None:
+        if finish is None and not room.finish:
             unassigned.append(Unassigned(where, "仕上げ",
                                          "部屋名に当たる [[finish]] が無い"))
         else:
             items += room_items(room, finish, rules, dropped)
+            decided = set(finish.codes if finish else ()) | set(room.finish)
             for kind, _, _ in SURFACES:
                 # 空文字は「この部屋にその面は無い」と人が判断した印。報告しない
-                if kind not in finish.codes:
+                if kind not in decided:
                     unassigned.append(Unassigned(where, _label(kind), "品目コードが無い"))
 
         items += _fittings(room, rules, unassigned, where)
@@ -262,10 +265,13 @@ def _furniture(room: Room, rules: Rules, unassigned: list[Unassigned],
                where: str) -> list[Item]:
     out: list[Item] = []
     for f in room.furniture:
-        if f.code not in rules.furniture:
+        if f.item:
+            code = f.item   # 3D の上でそのオブジェクトに割り当てた品目
+        elif f.code in rules.furniture:
+            code = rules.furniture[f.code]
+        else:
             unassigned.append(Unassigned(where, "家具", f"{f.code} に品目コードが無い"))
             continue
-        code = rules.furniture[f.code]
         if not code:
             continue        # 設備工事など、内装の数量に入れないもの
         out.append(Item(code, Decimal(f.count), "個", f"{where} {f.label}",
