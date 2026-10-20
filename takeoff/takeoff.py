@@ -187,14 +187,65 @@ NEEDS = {
 }
 
 
+def face_qty(room: Room, face, min_opening: Decimal) -> tuple[Decimal, str]:
+    """面 1 枚の数量と、その根拠の文。**その面に属する開口だけを引く。**
+
+    室の合計から引くのと違い、どの開口がどの壁に付いているかを面が知って
+    いるので、**壁ごとに正しく引ける**。
+    """
+    if face.kind != "wall":
+        return face.gross, f"{'床' if face.kind == 'floor' else '天井'}面積"
+    holes = [o for o in (room.opening(i) for i in face.openings) if o]
+    cut = [o for o in holes if o.area > min_opening]
+    qty = max(face.gross - sum((o.area for o in cut), ZERO), ZERO)
+    note = (f"{face.id} 壁面積。開口 {len(cut)} 箇所を差し引き" if cut
+            else f"{face.id} 壁面積。差し引く開口なし")
+    return qty, note
+
+
+def face_items(room: Room, codes: dict[str, str], rules: Rules,
+               dropped: list[Unassigned]) -> list[Item]:
+    """面ごとに 1 行ずつ。**面が個体で来ているときだけ。**
+
+    壁 4 面に別々の壁紙を貼れるのはここ。面が選んでいなければ、室ごとの
+    選択（`codes`）に落ちる。
+    """
+    out: list[Item] = []
+    where = room.name or room.id
+    for face in room.surfaces:
+        code = face.finish if face.finish else codes.get(face.kind, "")
+        if not code:
+            continue        # 書いていない or 空文字。どちらも行は作らない
+        qty, note = face_qty(room, face, rules.min_opening)
+        qty = round_qty(qty)
+        if qty <= 0:
+            dropped.append(Unassigned(where, _label(face.kind), "拾って 0 だった"))
+            continue
+        b = basis_mod.weakest((face.basis, room.basis_of(*NEEDS[face.kind])))
+        out.append(Item(code, qty, _unit(face.kind),
+                        f"{where} {note}".strip(), where, face.kind, b))
+    return out
+
+
 def room_items(room: Room, finish: Finish | None, rules: Rules,
                dropped: list[Unassigned]) -> list[Item]:
-    """1 部屋ぶんの面の数量。**選んであれば規則より選択を使う。**"""
+    """1 部屋ぶんの面の数量。**選んであれば規則より選択を使う。**
+
+    面が個体で来ていれば面ごとに、来ていなければ室の合計から 1 行で拾う。
+    巾木・回縁・撤去は**面から導く量**なので、どちらの場合も室ごとに 1 行。
+    """
     out: list[Item] = []
     where = room.name or room.id
     codes = dict(finish.codes if finish else {})
     codes.update(room.finish)   # 上流で選んだものが勝つ
+
+    faced = {f.kind for f in room.surfaces}
+    if room.surfaces:
+        out += face_items(room, codes, rules, dropped)
+
     for kind, label, _ in SURFACES:
+        if kind in faced:
+            continue        # 面ごとに拾い済み
         code = codes.get(kind, "")
         if not code:
             continue        # 書いていない or 空文字。どちらも行は作らない

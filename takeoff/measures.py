@@ -64,6 +64,49 @@ class Opening:
         return self.sill == 0
 
 
+#: 面として個体で受けられる種類。**人が 3D の上でつつけるものだけ。**
+#: 巾木・回縁・撤去は面から導く量で、クリックできる面ではないので室ごとのまま。
+SURFACE_KINDS = ("wall", "floor", "ceiling")
+
+
+@dataclass(frozen=True)
+class Surface:
+    """面 1 つ。**壁 1 枚、床、天井。**
+
+    室の合計（`wall_area`）だけでは 4 面に別々の壁紙が貼れない。面が
+    **個体として id を持つ**ことが、面ごとに仕上げを選べることの全て。
+
+    **壁は面積を持たない。** 長さと高さと、その面に属する開口の id を持つ。
+    「1 か所いくつ以下を引かないか」は積算基準の規約（`deducted_wall` の
+    `min_opening`）で、幾何を知っている上流の持ち物ではない。上流が先に
+    引くと規約が幾何の側に漏れる。
+
+    床と天井が `area` を持つのは、引くものが無く、面積が上流の実測そのものだから。
+    """
+
+    id: str
+    kind: str
+    #: 上流で選んだ品目コード。**空文字は「この面は拾わない」と人が判断した印**
+    finish: str = ""
+    #: 壁の長さ（mm）
+    length: Decimal = Decimal(0)
+    #: 壁の高さ（mm）
+    height: Decimal = Decimal(0)
+    #: 床・天井の面積（㎡）
+    area: Decimal = Decimal(0)
+    #: この面に属する開口の id。実体は `Room.openings` にある
+    openings: tuple[str, ...] = ()
+    #: この面の量の根拠
+    basis: str = basis_mod.MEASURED
+
+    @property
+    def gross(self) -> Decimal:
+        """開口を抜く前の見付面積（㎡）。"""
+        if self.kind == "wall":
+            return self.length * self.height / Decimal(1_000_000)
+        return self.area
+
+
 @dataclass(frozen=True)
 class Furniture:
     """家具 1 種。
@@ -97,6 +140,11 @@ class Room:
     wall_area: Decimal
     openings: tuple[Opening, ...] = ()
     furniture: tuple[Furniture, ...] = ()
+    #: 面の個体。**空なら室の合計で拾う**（従来どおり）。
+    #:
+    #: 壁 1 枚ずつに別の仕上げを当てられるのは、ここに面が並んでいるときだけ。
+    #: 上流が面を分けて出せないなら、室の合計から 1 行で拾う。
+    surfaces: tuple[Surface, ...] = ()
     #: 面の種類 → 上流で選んだ品目コード。**`[[finish]]` の規則より優先する。**
     #:
     #: 規則は「居室の壁は量産クロス」という**部屋の種別ごとの決め打ち**で、
@@ -114,6 +162,18 @@ class Room:
     def basis_of(self, *keys: str) -> str:
         """その量を作るのに使った根拠のうち、**一番弱いもの**。"""
         return basis_mod.weakest(self.basis.get(k, basis_mod.MEASURED) for k in keys)
+
+    def opening(self, oid: str) -> Opening | None:
+        """id で開口を引く。**実体は室に 1 つだけ置く。**
+
+        面にも開口の実体を持たせると、同じ建具が 2 箇所から数えられて員数が
+        倍になる。面が持つのは id だけ。
+        """
+        return next((o for o in self.openings if o.id == oid), None)
+
+    def faces(self, kind: str) -> tuple[Surface, ...]:
+        """その種類の面。"""
+        return tuple(f for f in self.surfaces if f.kind == kind)
 
 
 @dataclass(frozen=True)
@@ -267,6 +327,7 @@ def _room(raw: dict, at: str, reasons: list[str]) -> Room:
         furniture.append(Furniture(code, str(f.get("label") or code).strip(),
                                    count, str(f.get("item") or "").strip()))
 
+    surfaces = _surfaces(raw, at, reasons, {o.id for o in openings})
     finish = _finish(raw, at, reasons)
     b = _basis(raw, at, reasons)
     note = raw.get("basis_note") or {}
@@ -276,8 +337,82 @@ def _room(raw: dict, at: str, reasons: list[str]) -> Room:
 
     return Room(rid, name, nums["floor_area"], nums["ceiling_area"],
                 nums["perimeter"], nums["height"], nums["wall_area"],
-                tuple(openings), tuple(furniture), finish, b,
+                tuple(openings), tuple(furniture), tuple(surfaces), finish, b,
                 {str(k): str(v) for k, v in note.items()})
+
+
+def _surfaces(raw: dict, at: str, reasons: list[str],
+              known: set[str]) -> list[Surface]:
+    """面の個体を読む。**知らない種類と、知らない開口は断る。**
+
+    黙って読み飛ばすと、選んだ面が 1 つ消えたまま金額が出る。欠けた面は
+    見積書からは見えない——**出せない状態を黙って出さない**ための検査。
+    """
+    got = raw.get("surfaces")
+    if got is None:
+        return []
+    if not isinstance(got, list):
+        reasons.append(f"{at}.surfaces: 並びではない")
+        return []
+
+    out: list[Surface] = []
+    seen: set[str] = set()
+    for m, f in enumerate(got):
+        fat = f"{at}.surfaces[{m}]"
+        if not isinstance(f, dict):
+            reasons.append(f"{fat}: 辞書ではない")
+            continue
+        fid = str(f.get("id") or "").strip()
+        if not fid:
+            reasons.append(f"{fat}: id が空。仕上げを当てる先が決まらない")
+            continue
+        if fid in seen:
+            reasons.append(f"{fat}: 面 {fid} が重複している")
+            continue
+        seen.add(fid)
+
+        kind = str(f.get("kind") or "").strip()
+        if kind not in SURFACE_KINDS:
+            reasons.append(f"{fat}: 知らない面の種類 ({kind!r})。"
+                           f"使えるのは {'・'.join(SURFACE_KINDS)}")
+            continue
+
+        oids: list[str] = []
+        for oid in f.get("openings") or ():
+            oid = str(oid).strip()
+            if oid not in known:
+                reasons.append(f"{fat}: 開口 {oid} が室の openings に無い")
+                continue
+            oids.append(oid)
+
+        b = str(f.get("basis") or basis_mod.MEASURED).strip()
+        if not basis_mod.known(b):
+            reasons.append(f"{fat}.basis: 知らない根拠 ({b!r})")
+            b = basis_mod.MEASURED
+
+        out.append(Surface(
+            fid, kind, str(f.get("finish") or "").strip(),
+            _positive(f.get("length", 0), field_=f"{fat}.length", reasons=reasons),
+            _positive(f.get("height", 0), field_=f"{fat}.height", reasons=reasons),
+            _positive(f.get("area", 0), field_=f"{fat}.area", reasons=reasons),
+            tuple(oids), b))
+
+    _check_faces(out, at, reasons)
+    return out
+
+
+def _check_faces(faces: list[Surface], at: str, reasons: list[str]) -> None:
+    """面として成り立っているか。**0 の面は数量が出ない。**"""
+    for f in faces:
+        if f.kind == "wall" and (f.length <= 0 or f.height <= 0):
+            reasons.append(f"{at}: 壁 {f.id} の長さか高さが 0。数量が出ない")
+        if f.kind in ("floor", "ceiling") and f.area <= 0:
+            reasons.append(f"{at}: {f.kind} {f.id} の面積が 0。数量が出ない")
+    for kind in ("floor", "ceiling"):
+        n = sum(1 for f in faces if f.kind == kind)
+        if n > 1:
+            reasons.append(f"{at}: {kind} の面が {n} 枚ある。"
+                           f"室に 1 枚だけ置く")
 
 
 def _finish(raw: dict, at: str, reasons: list[str]) -> dict[str, str]:
