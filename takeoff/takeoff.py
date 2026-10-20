@@ -66,6 +66,11 @@ class Item:
     kind: str
     #: この数量の根拠。**使った入力のうち一番弱いもの**
     basis: str = basis_mod.MEASURED
+    #: どの面から来たか（面の id）。面ごとに拾ったときだけ入る。
+    #:
+    #: **注記の文字列で突き合わせない**ための欄。受け取った側が金額を面に
+    #: 割り戻すとき、注記を解くと書き方を変えた瞬間に黙って外れる。
+    ref: str = ""
 
     @property
     def empty(self) -> bool:
@@ -223,7 +228,7 @@ def face_items(room: Room, codes: dict[str, str], rules: Rules,
             continue
         b = basis_mod.weakest((face.basis, room.basis_of(*NEEDS[face.kind])))
         out.append(Item(code, qty, _unit(face.kind),
-                        f"{where} {note}".strip(), where, face.kind, b))
+                        f"{where} {note}".strip(), where, face.kind, b, face.id))
     return out
 
 
@@ -261,10 +266,14 @@ def room_items(room: Room, finish: Finish | None, rules: Rules,
     return out
 
 
-def build(measures: Measures, rules: Rules) -> Result:
+def build(measures: Measures, rules: Rules, resolve=None) -> Result:
     """実測と拾い方から数量を組む。
 
     **仕上げの当たらない部屋も、品目コードの無い建具・家具も、落とさずに数える。**
+
+    `resolve` は置換アセット `(source, id)` を品目コードに引く呼び出し。
+    **対応表そのものはここに持たない**——単価も品目も見積り側の持ち物で、
+    拾い側は「このアセットは何の品目か」を知らない。
     """
     items: list[Item] = []
     unassigned: list[Unassigned] = []
@@ -285,7 +294,10 @@ def build(measures: Measures, rules: Rules) -> Result:
                     unassigned.append(Unassigned(where, _label(kind), "品目コードが無い"))
 
         items += _fittings(room, rules, unassigned, where)
-        items += _furniture(room, rules, unassigned, where)
+        # 個体で来ていれば 1 個ずつ、来ていなければ種別ごとに畳んだまま
+        items += (_instances(room, rules, unassigned, where, resolve)
+                  if room.instances
+                  else _furniture(room, rules, unassigned, where))
 
     return Result(measures.plan_id, measures.name, rules.standard,
                   tuple(items), tuple(unassigned), measures.assumptions,
@@ -309,6 +321,48 @@ def _fittings(room: Room, rules: Rules, unassigned: list[Unassigned],
             continue        # 空文字は「拾うものが無い」と人が判断した印
         out.append(Item(code, Decimal(n), "箇所", f"{where} {kind}", where, "建具",
                         room.basis_of("openings")))
+    return out
+
+
+def _instances(room: Room, rules: Rules, unassigned: list[Unassigned],
+               where: str, resolve) -> list[Item]:
+    """置いてあるものを 1 個ずつ。**種別で畳まない。**
+
+    品目の決まり方は上から順に:
+
+    1. `item` — 直に指した品目
+    2. `asset` — 置き換えたカタログのアセットを `resolve` に引かせる
+    3. `category` — 種別ごとの規則（`[furniture]`）
+
+    **置換したアセットが種別より勝つ。** 3D の上で人が選んだものが、
+    「ソファという種別」より具体的だから。
+
+    `resolve` は `(source, id) -> str | None`。**None は「対応表に無い」**で
+    報告に出す。空文字は「見積りに入れない」と人が決めた印なので黙って飛ばす。
+    この 2 つを畳むと、書き忘れが「入れないと決めた」に化ける。
+    """
+    out: list[Item] = []
+    for inst in room.instances:
+        what = inst.label or inst.category or inst.id
+        if inst.item:
+            code = inst.item
+        elif inst.asset is not None:
+            code = resolve(*inst.asset) if resolve else None
+            if code is None:
+                unassigned.append(Unassigned(
+                    where, "置換", f"{inst.asset[0]}/{inst.asset[1]}"
+                    f"（{what}）に当たる品目が対応表に無い"))
+                continue
+        elif inst.category in rules.furniture:
+            code = rules.furniture[inst.category]
+        else:
+            unassigned.append(Unassigned(
+                where, "家具", f"{inst.category} に品目コードが無い"))
+            continue
+        if not code:
+            continue        # 設備工事・施主支給など、拾わないと決めたもの
+        out.append(Item(code, Decimal(1), "個", f"{where} {what}",
+                        where, "家具", inst.basis, inst.id))
     return out
 
 

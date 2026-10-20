@@ -113,7 +113,8 @@ def quantities(result: Result, *, number: str = "", issued: str = "",
     doc: dict = {
         "scan_id": result.plan_id,
         "name": result.name,
-        "items": [{"code": i.code, "qty": num(i.qty), "note": _note(i)}
+        "items": [{"code": i.code, "qty": num(i.qty), "note": _note(i),
+                   **({"ref": i.ref} if i.ref else {})}
                   for i in result.items],
     }
     est = {k: v for k, v in (("number", number), ("issued", issued),

@@ -124,6 +124,33 @@ class Furniture:
 
 
 @dataclass(frozen=True)
+class Instance:
+    """置いてあるもの 1 個。**種別で畳まない。**
+
+    `Furniture` が `{"code": "chair", "count": 4}` と種別で数えるのに対し、
+    こちらは 1 個ずつ識別子を持つ。椅子 4 脚のうち 1 脚だけ別の品目に
+    できるのは、個体が並んでいるときだけ。
+
+    `asset` は 3D の上で置き換えたカタログのアセット。**どのカタログの id かを
+    `source` で名乗る**——ASIN とファイル名では識別空間が違い、bare な id は
+    カタログ源が増えれば衝突する。
+
+    `item` は品目コードを直に指したとき。`asset` → 対応表 → 品目、という順で
+    引くのが本筋だが、対応表を持たない呼び手のために残してある。
+    """
+
+    id: str
+    category: str
+    label: str = ""
+    item: str = ""
+    #: `(source, id)`。空なら置換していない
+    asset: tuple[str, str] | None = None
+    #: 幅・高さ・奥行（mm）。**値段は決めない。**見積書に添えるだけ
+    extent: tuple[Decimal, ...] = ()
+    basis: str = basis_mod.MEASURED
+
+
+@dataclass(frozen=True)
 class Room:
     """部屋 1 つ。**面積と長さは上流が解決済み。**"""
 
@@ -140,6 +167,8 @@ class Room:
     wall_area: Decimal
     openings: tuple[Opening, ...] = ()
     furniture: tuple[Furniture, ...] = ()
+    #: 置いてあるものの個体。**空なら `furniture` の種別集計で拾う**（従来どおり）。
+    instances: tuple[Instance, ...] = ()
     #: 面の個体。**空なら室の合計で拾う**（従来どおり）。
     #:
     #: 壁 1 枚ずつに別の仕上げを当てられるのは、ここに面が並んでいるときだけ。
@@ -327,6 +356,7 @@ def _room(raw: dict, at: str, reasons: list[str]) -> Room:
         furniture.append(Furniture(code, str(f.get("label") or code).strip(),
                                    count, str(f.get("item") or "").strip()))
 
+    instances = _instances(raw, at, reasons)
     surfaces = _surfaces(raw, at, reasons, {o.id for o in openings})
     finish = _finish(raw, at, reasons)
     b = _basis(raw, at, reasons)
@@ -337,8 +367,62 @@ def _room(raw: dict, at: str, reasons: list[str]) -> Room:
 
     return Room(rid, name, nums["floor_area"], nums["ceiling_area"],
                 nums["perimeter"], nums["height"], nums["wall_area"],
-                tuple(openings), tuple(furniture), tuple(surfaces), finish, b,
+                tuple(openings), tuple(furniture), tuple(instances),
+                tuple(surfaces), finish, b,
                 {str(k): str(v) for k, v in note.items()})
+
+
+def _instances(raw: dict, at: str, reasons: list[str]) -> list[Instance]:
+    """置いてあるものを 1 個ずつ読む。**識別子が無ければ個体にならない。**"""
+    got = raw.get("instances")
+    if got is None:
+        return []
+    if not isinstance(got, list):
+        reasons.append(f"{at}.instances: 並びではない")
+        return []
+
+    out: list[Instance] = []
+    seen: set[str] = set()
+    for m, o in enumerate(got):
+        oat = f"{at}.instances[{m}]"
+        if not isinstance(o, dict):
+            reasons.append(f"{oat}: 辞書ではない")
+            continue
+        oid = str(o.get("id") or "").strip()
+        if not oid:
+            reasons.append(f"{oat}: id が空。品目を当てる先が決まらない")
+            continue
+        if oid in seen:
+            reasons.append(f"{oat}: {oid} が重複している")
+            continue
+        seen.add(oid)
+
+        asset = None
+        raw_asset = o.get("asset")
+        if raw_asset is not None:
+            if not isinstance(raw_asset, dict):
+                reasons.append(f"{oat}.asset: 辞書ではない")
+            else:
+                src = str(raw_asset.get("source") or "").strip()
+                aid = str(raw_asset.get("id") or "").strip()
+                if not src or not aid:
+                    reasons.append(f"{oat}.asset: source と id の両方が要る。"
+                                   f"どのカタログの id か決まらない")
+                else:
+                    asset = (src, aid)
+
+        b = str(o.get("basis") or basis_mod.MEASURED).strip()
+        if not basis_mod.known(b):
+            reasons.append(f"{oat}.basis: 知らない根拠 ({b!r})")
+            b = basis_mod.MEASURED
+
+        extent = tuple(_positive(v, field_=f"{oat}.extent[{k}]", reasons=reasons)
+                       for k, v in enumerate(o.get("extent") or ()))
+        out.append(Instance(oid, str(o.get("category") or "").strip(),
+                            str(o.get("label") or "").strip(),
+                            str(o.get("item") or "").strip(),
+                            asset, extent, b))
+    return out
 
 
 def _surfaces(raw: dict, at: str, reasons: list[str],
