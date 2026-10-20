@@ -282,12 +282,17 @@ def build(measures: Measures, rules: Rules, resolve=None) -> Result:
     for room in measures.rooms:
         where = room.name or room.id
         finish = rules.finish_for(room.name)
-        if finish is None and not room.finish:
+        # **面ごとに選んであれば、部屋名が規則に当たらなくても拾う。**
+        # 室ごとの選択だけを見ていると、面を 1 枚ずつ選んだのに
+        # 「部屋名に当たる規則が無い」で全部落ちる
+        picked = bool(room.finish) or any(f.finish for f in room.surfaces)
+        if finish is None and not picked:
             unassigned.append(Unassigned(where, "仕上げ",
                                          "部屋名に当たる [[finish]] が無い"))
         else:
             items += room_items(room, finish, rules, dropped)
-            decided = set(finish.codes if finish else ()) | set(room.finish)
+            decided = (set(finish.codes if finish else ()) | set(room.finish)
+                       | {f.kind for f in room.surfaces if f.finish})
             for kind, _, _ in SURFACES:
                 # 空文字は「この部屋にその面は無い」と人が判断した印。報告しない
                 if kind not in decided:

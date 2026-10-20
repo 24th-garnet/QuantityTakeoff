@@ -159,3 +159,15 @@ def test_開口の実体は室に1つだけ():
     """**面にも実体を持たせると建具の員数が倍になる。** 面が持つのは id だけ。"""
     got = [i for i in built().items if i.kind == "建具"]
     assert sum(int(i.qty) for i in got) == 3        # 掃き出し窓・腰窓・小窓
+
+
+def test_面ごとに選べば部屋名が規則に当たらなくても拾える():
+    """**面を 1 枚ずつ選んだのに全部落ちる**のを防ぐ。
+
+    室ごとの選択だけを見ていると、`[[finish]]` に当たらない部屋名
+    （「LDK」など）で面の選択が丸ごと無視される。
+    """
+    faces = [{**f, "finish": "ERABI"} if f["id"] == "w0" else f for f in FACES]
+    got = built(faces, name="名無しの間")
+    assert [i.code for i in walls(got)] == ["ERABI"]
+    assert not any(u.kind == "仕上げ" for u in got.unassigned)
